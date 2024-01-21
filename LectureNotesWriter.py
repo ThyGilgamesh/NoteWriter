@@ -2,12 +2,30 @@ import tkinter as tk
 from tkinter import filedialog
 from datetime import datetime
 import os
+import json
+
+
+def save_subjects(subjects):
+    with open("subjects.json", "w") as subjects_file:
+        json.dump(subjects, subjects_file)
+
+
+def load_subjects():
+    try:
+        with open("subjects.json", "r") as subjects_file:
+            return json.load(subjects_file)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return []
+
+
+subject_folder_names = load_subjects()
 
 
 class SubjectDialog(tk.simpledialog.Dialog):
     def body(self, master: tk.Tk) -> tk.Frame:
-        tk.Label(master, text="SUMMARY:").grid(row=0, column=0)
-        tk.Label(master, text="SUBJECT:").grid(row=1, column=0)
+
+        tk.Label(master, text="Summary:     ").grid(row=0, column=0)
+        tk.Label(master, text="Subject: ").grid(row=1, column=0)
 
         self.summary_var: tk.StringVar = tk.StringVar()
         self.summary_entry: tk.Entry = tk.Entry(master, textvariable=self.summary_var)
@@ -16,7 +34,7 @@ class SubjectDialog(tk.simpledialog.Dialog):
         self.subject_var: tk.StringVar = tk.StringVar()
         self.subject_var.set("No Subject")
 
-        subjects = ['Optics', 'Quantum', 'Math 3B']
+        subjects = load_subjects()
 
         self.subject_dropdown: tk.OptionMenu = tk.OptionMenu(master, self.subject_var, *subjects)
         self.subject_dropdown.grid(row=1, column=1)
@@ -40,14 +58,20 @@ class SubjectDialog(tk.simpledialog.Dialog):
 
 class TextEditor:
     def __init__(self, root: tk.Tk) -> None:
+        font_style = ("Source Code Pro", 11)
         dateAndTime: str = datetime.now().strftime("%Y %m %d %H%M")
         self.root: tk.Tk = root
-        self.root.title(f"Lecture Notes - {dateAndTime}")
+        self.root.title(f"Note Writer - {dateAndTime}")
         self.text_widget: tk.Text = tk.Text(root, wrap="word", undo=True, bg="gray", fg="white")
-        self.text_widget.configure(font=("Source Code Pro", 11))
+        self.text_widget.configure(font=font_style)
         self.text_widget.pack(expand=True, fill="both")
         self.file_path: str | None
         self.autofolder: tk.BooleanVar = tk.BooleanVar(value=True)
+        self.subjects_menu: tk.Menu = tk.Menu(root)
+        self.update_subjects_menu()
+        self.subject_folder_names = load_subjects()
+        self.subjects_menu: tk.Menu = tk.Menu(root)
+        self.update_subjects_menu()
 
         menu_bar: tk.Menu = tk.Menu(root)
         root.config(menu=menu_bar)
@@ -66,6 +90,8 @@ class TextEditor:
         menu_bar.add_cascade(label="Edit", menu=edit_menu)
         edit_menu.add_command(label="Find", command=self.find_text, accelerator="Ctrl+F")
 
+        edit_menu.add_command(label="Manage Subjects", command=self.manage_subjects)
+
         self.autofolder_label: tk.Label = tk.Label(root, text="Ctrl+Q to toggle Auto Folder",
                                                    anchor="e", padx=5)
         self.autofolder_label.pack(side="bottom", fill="x")
@@ -78,6 +104,35 @@ class TextEditor:
         root.bind("<Control-q>", lambda event: self.toggle_autofolder())
 
         root.protocol("WM_DELETE_WINDOW", self.on_exit)
+
+        edit_menu.add_separator()
+        edit_menu.add_command(label="Set Default Folder", command=self.set_default_folder)
+
+    def manage_subjects(self) -> None:
+        ManageSubjectsDialog(self.root, self.subject_folder_names)
+        self.update_subjects_menu()
+
+    def update_subjects_menu(self) -> None:
+        self.subjects_menu.delete(0, tk.END)
+
+        for subject in subject_folder_names:
+            self.subjects_menu.add_command(label=subject,
+                                           command=lambda s=subject: self.select_subject(s))
+
+    def set_default_folder(self) -> None:
+        default_folder = filedialog.askdirectory(title="Select Default Folder")
+        if default_folder:
+            settings = {'default_folder': default_folder}
+            with open("settings.json", "w") as settings_file:
+                json.dump(settings, settings_file)
+
+    def get_default_folder(self) -> str | None:
+        try:
+            with open("settings.json", "r") as settings_file:
+                settings = json.load(settings_file)
+                return settings.get('default_folder', None)
+        except (FileNotFoundError, json.JSONDecodeError):
+            return None
 
     def toggle_autofolder(self) -> None:
         self.autofolder.set(not self.autofolder.get())
@@ -118,29 +173,42 @@ class TextEditor:
                 file.write(content)
 
     def save_as_file(self, event: tk.Event | None = None) -> None:
-        subject_dialog = SubjectDialog(self.root)
-        subject = subject_dialog.result
+        current_time = datetime.now().strftime("%Y-%m-%d %H%M%S")
+        file_path = None
 
-        if subject is None:
-            pass
-        else:
-            current_time = datetime.now().strftime("%Y-%m-%d %H%M%S")
-            suggested_name = f"{subject['subject']} {current_time} {subject['summary']}.txt"
-            if self.autofolder.get():
-                base_directory = r"C:\Users\bigre\OneDrive\Documents\Assignments\Lecture Notes"
+        if self.autofolder.get():
+            subject_dialog = SubjectDialog(self.root)
+            subject = subject_dialog.result
+
+            if subject is None:
+                pass
+
+            else:
+                suggested_name = f"{current_time} {subject['summary']}.txt"
+                default_folder = self.get_default_folder()
+
+                base_directory = default_folder
+                # r"C:\Users\bigre\OneDrive\Documents\Assignments\Lecture Notes"
                 saveDirectory = os.path.join(base_directory, f'{subject["subject"]}')
                 os.makedirs(saveDirectory, exist_ok=True)
                 file_path = os.path.join(saveDirectory, suggested_name)
-            else:
-                file_path = tk.filedialog.asksaveasfilename(defaultextension=".txt",
-                                                            initialfile=suggested_name,
-                                                            filetypes=[("Text Documents", "*.txt"),
-                                                                       ("All Files", "*.*")])
-            if file_path:
-                content = self.text_widget.get(1.0, tk.END)
-                with open(file_path, "w") as file:
-                    file.write(content)
-                self.file_path = file_path
+        else:
+            summary = tk.simpledialog.askstring("Summary", "Enter summary: ", parent=self.root)
+
+            if not summary:
+                summary = ''
+
+            suggested_name = f"Note {current_time} {summary}.txt"
+            file_path = tk.filedialog.asksaveasfilename(defaultextension=".txt",
+                                                        initialfile=suggested_name,
+                                                        filetypes=[("Text Documents", "*.txt"),
+                                                                   ("All Files", "*.*")])
+
+        if file_path:
+            content = self.text_widget.get(1.0, tk.END)
+            with open(file_path, "w") as file:
+                file.write(content)
+            self.file_path = file_path
 
     def find_text(self, event: tk.Event | None = None) -> None:
         target = tk.simpledialog.askstring("Find", "Enter text to find:")
@@ -155,6 +223,49 @@ class TextEditor:
                 self.text_widget.mark_set(tk.INSERT, self.text_widget.tag_ranges(tk.SEL)[0])
                 self.text_widget.see(tk.INSERT)
                 self.text_widget.tag_configure(tk.SEL, background="white", foreground="black")
+
+
+class ManageSubjectsDialog(tk.simpledialog.Dialog):
+    def __init__(self, root: tk.Tk, subject_folder_names: list[str]) -> None:
+        self.subject_folder_names = subject_folder_names
+        self.root: tk.Tk = root
+        super().__init__(root)
+
+    def body(self, master: tk.Tk) -> tk.Frame:
+        tk.Label(master, text="Manage Subjects").grid(row=0,
+                                                      column=0,
+                                                      columnspan=2,
+                                                      pady=10)
+
+        self.subject_listbox: tk.Listbox = tk.Listbox(master,
+                                                      selectmode=tk.MULTIPLE)
+        for subject in self.subject_folder_names:
+            self.subject_listbox.insert(tk.END, subject)
+        self.subject_listbox.grid(row=1, column=0, columnspan=2, pady=10)
+
+        add_button = tk.Button(master, text="Add", command=self.add_subject)
+        add_button.grid(row=2, column=0, padx=5, pady=5)
+
+        remove_button = tk.Button(master, text="Remove",
+                                  command=self.remove_subject)
+        remove_button.grid(row=2, column=1, padx=5, pady=5)
+
+    def apply(self) -> None:
+        save_subjects(self.subject_folder_names)
+
+    def add_subject(self) -> None:
+        new_subject = tk.simpledialog.askstring("Add Subject", "Enter the new subject:",
+                                                parent=self.root)
+        if new_subject and new_subject not in self.subject_folder_names:
+            self.subject_folder_names.append(new_subject)
+            self.subject_listbox.insert(tk.END, new_subject)
+
+    def remove_subject(self) -> None:
+        selected_indices = self.subject_listbox.curselection()
+        for index in reversed(selected_indices):
+            removed_subject = self.subject_listbox.get(index)
+            self.subject_folder_names.remove(removed_subject)
+            self.subject_listbox.delete(index)
 
 
 if __name__ == "__main__":
