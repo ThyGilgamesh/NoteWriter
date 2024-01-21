@@ -188,7 +188,7 @@ class TextEditor:
                 default_folder = self.get_default_folder()
 
                 base_directory = default_folder
-                # r"C:\Users\bigre\OneDrive\Documents\Assignments\Lecture Notes"
+
                 saveDirectory = os.path.join(base_directory, f'{subject["subject"]}')
                 os.makedirs(saveDirectory, exist_ok=True)
                 file_path = os.path.join(saveDirectory, suggested_name)
