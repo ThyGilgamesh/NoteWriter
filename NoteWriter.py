@@ -59,7 +59,7 @@ class SubjectDialog(tk.simpledialog.Dialog):
 class TextEditor:
     def __init__(self, root: tk.Tk) -> None:
         font_style = ("Source Code Pro", 11)
-        dateAndTime: str = datetime.now().strftime("%Y %m %d %H%M")
+        dateAndTime: str = datetime.now().strftime("%Y/%m/%d %H:%M")
         self.root: tk.Tk = root
         self.root.title(f"Note Writer - {dateAndTime}")
         self.text_widget: tk.Text = tk.Text(root, wrap="word", undo=True, bg="gray", fg="white")
@@ -90,6 +90,9 @@ class TextEditor:
         menu_bar.add_cascade(label="Edit", menu=edit_menu)
         edit_menu.add_command(label="Find", command=self.find_text, accelerator="Ctrl+F")
 
+        edit_menu.add_command(label="Insert Date and Time", command=self.writeDateTime,
+                              accelerator="Ctrl+Shift+D")
+
         edit_menu.add_command(label="Manage Subjects", command=self.manage_subjects)
 
         self.autofolder_label: tk.Label = tk.Label(root, text="Ctrl+Q to toggle Auto Folder",
@@ -102,11 +105,16 @@ class TextEditor:
         root.bind("<Control-S>", lambda event: self.save_as_file())
         root.bind("<Control-f>", lambda event: self.find_text())
         root.bind("<Control-q>", lambda event: self.toggle_autofolder())
+        root.bind("<Control-D>", lambda event: self.writeDateTime())
 
         root.protocol("WM_DELETE_WINDOW", self.on_exit)
 
         edit_menu.add_separator()
         edit_menu.add_command(label="Set Default Folder", command=self.set_default_folder)
+
+    def writeDateTime(self) -> None:
+        current_time = datetime.now().strftime("%Y/%m/%d %H:%M:%S ")
+        self.text_widget.insert(tk.INSERT, current_time)
 
     def manage_subjects(self) -> None:
         ManageSubjectsDialog(self.root, self.subject_folder_names)
@@ -154,17 +162,32 @@ class TextEditor:
     def open_file(self, event: tk.Event | None = None) -> None:
         self.save_file()
 
-        file_path = filedialog.askopenfilename(defaultextension=".txt",
-                                               filetypes=[("Text Documents", "*.txt"),
-                                                          ("All Files", "*.*")])
-        if file_path:
-            with open(file_path, "r") as file:
-                content = file.read()
-                self.text_widget.delete(1.0, tk.END)
-                self.text_widget.insert(tk.END, content)
-            self.file_path = file_path
+        if self.autofolder.get():
+            file_path = filedialog.askopenfilename(defaultextension=".txt",
+                                                   filetypes=[("Text Documents", "*.txt"),
+                                                              ("All Files", "*.*")])
+        else:
+            default_folder = self.get_default_folder()
+            file_path = tk.filedialog.askopenfilename(initialdir=default_folder,
+                                                      defaultextension=".txt",
+                                                      filetypes=[("Text Documents", "*.txt"),
+                                                                 ("All Files", "*.*")])
 
-    def save_file(self, event: tk.Event | None = None) -> None:
+        if file_path:
+            self.file_path = file_path
+            self.text_widget.delete(1.0, tk.END)
+            self.load_large_file(file_path)
+
+    def load_large_file(self, file_path: str) -> None:
+        try:
+            with open(file_path, "r", encoding="utf-8") as file:
+                for line in file:
+                    self.text_widget.insert(tk.END, line)
+                    self.text_widget.update_idletasks()
+        except Exception as e:
+            print(f"Error loading file: {e}")
+
+    def save_file(self, event=None):
         if not hasattr(self, 'file_path') or not self.file_path:
             self.save_as_file()
         else:
@@ -172,7 +195,7 @@ class TextEditor:
             with open(self.file_path, "w") as file:
                 file.write(content)
 
-    def save_as_file(self, event: tk.Event | None = None) -> None:
+    def save_as_file(self, event=None) -> None:
         current_time = datetime.now().strftime("%Y-%m-%d %H%M%S")
         file_path = None
 
@@ -188,7 +211,7 @@ class TextEditor:
                 default_folder = self.get_default_folder()
 
                 base_directory = default_folder
-                # r"C:\Users\bigre\OneDrive\Documents\Assignments\Lecture Notes"
+
                 saveDirectory = os.path.join(base_directory, f'{subject["subject"]}')
                 os.makedirs(saveDirectory, exist_ok=True)
                 file_path = os.path.join(saveDirectory, suggested_name)
