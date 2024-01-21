@@ -84,16 +84,21 @@ class TextEditor:
         file_menu.add_command(label="Save As",
                               command=self.save_as_file, accelerator="Ctrl+Shift+S")
         file_menu.add_separator()
-        file_menu.add_command(label="Exit Without Saving", command=root.destroy)
+        file_menu.add_command(label="Exit Without Saving", command=root.destroy,
+                              accelerator="Ctrl+Shift+~")
 
         edit_menu: tk.Menu = tk.Menu(menu_bar, tearoff=0)
         menu_bar.add_cascade(label="Edit", menu=edit_menu)
-        edit_menu.add_command(label="Find", command=self.find_text, accelerator="Ctrl+F")
+        edit_menu.add_command(label="Find Text", command=self.find_text, accelerator="Ctrl+F")
 
         edit_menu.add_command(label="Insert Date and Time", command=self.writeDateTime,
                               accelerator="Ctrl+Shift+D")
 
-        edit_menu.add_command(label="Manage Subjects", command=self.manage_subjects)
+        edit_menu.add_command(label="Toggle Auto Folder", command=self.toggle_autofolder,
+                              accelerator="Ctrl+q")
+
+        edit_menu.add_command(label="Manage Subjects", command=self.manage_subjects,
+                              accelerator="Ctrl+M")
 
         self.autofolder_label: tk.Label = tk.Label(root, text="Ctrl+Q to toggle Auto Folder",
                                                    anchor="e", padx=5)
@@ -106,11 +111,15 @@ class TextEditor:
         root.bind("<Control-f>", lambda event: self.find_text())
         root.bind("<Control-q>", lambda event: self.toggle_autofolder())
         root.bind("<Control-D>", lambda event: self.writeDateTime())
+        root.bind("<Control-m>", lambda event: self.manage_subjects())
+        root.bind("<Control-~>", lambda event: self.root.destroy())
+        root.bind("<Control-F>", lambda event: self.set_default_folder())
 
         root.protocol("WM_DELETE_WINDOW", self.on_exit)
 
         edit_menu.add_separator()
-        edit_menu.add_command(label="Set Default Folder", command=self.set_default_folder)
+        edit_menu.add_command(label="Set Default Folder", command=self.set_default_folder,
+                              accelerator="Ctrl+Shift+F")
 
     def writeDateTime(self) -> None:
         current_time = datetime.now().strftime("%Y/%m/%d %H:%M:%S ")
